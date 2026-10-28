@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>千早駅整骨院 Web予約</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<style>
+/* layout: タップだけで進む縦長ステップ予約。料金表・問診票と同じオレンジ×ブラック。最後にLINEのトークへ文面を自動入力して送る */
+:root {
+  --bg: #f7f7f6; --surface: #ffffff; --surface2: #f2f2f0; --border: #e4e3e0;
+  --fg: #1a1a1a; --fg2: #555550; --fg3: #888882; --ink: #1a1a1a; --on-ink: #ffffff;
+  --accent: #e8650a; --accent-light: #fef0e6; --red: #c0392b; --red-bg: #fdf0ee;
+  --line: #06c755; --sun: #c0392b; --sat: #1a5276;
+  --body: #e9e7e3; --body-line: #b9b6ae;
+  --font: 'Noto Sans JP', -apple-system, 'Hiragino Sans', sans-serif;
+  --radius: 12px; --radius-sm: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141412; --surface: #1f1f1c; --surface2: #2a2a26; --border: #38382f;
+    --fg: #f0efe8; --fg2: #b8b8aa; --fg3: #7a7a6e; --ink: #0d0d0b; --on-ink: #f0efe8;
+    --accent: #f07530; --accent-light: #2a1c08; --red: #e74c3c; --red-bg: #2a0f0c;
+    --line: #06c755; --sun: #e74c3c; --sat: #5dade2;
+    --body: #34342e; --body-line: #5a5a50; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141412; --surface: #1f1f1c; --surface2: #2a2a26; --border: #38382f;
+  --fg: #f0efe8; --fg2: #b8b8aa; --fg3: #7a7a6e; --ink: #0d0d0b; --on-ink: #f0efe8;
+  --accent: #f07530; --accent-light: #2a1c08; --red: #e74c3c; --red-bg: #2a0f0c;
+  --line: #06c755; --sun: #e74c3c; --sat: #5dade2;
+  --body: #34342e; --body-line: #5a5a50; color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font);
+  font-size: 15px; line-height: 1.7;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 40px;
+}
+.wrap { max-width: 620px; margin: 0 auto; }
+header.top {
+  background: var(--ink); color: var(--on-ink);
+  margin-left: calc(-1 * max(16px, env(safe-area-inset-left, 0px)));
+  margin-right: calc(-1 * max(16px, env(safe-area-inset-right, 0px)));
+  padding-block: 18px 14px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px));
+  text-align: center;
+}
+header.top .sub { font-size: 11px; letter-spacing: .15em; color: var(--fg3); margin: 0 0 2px; }
+header.top h1 { font-size: 20px; margin: 0; letter-spacing: .08em; }
+header.top .tag { font-size: 11px; color: var(--accent); letter-spacing: .1em; margin: 4px 0 0; }
+
+.progress { display: flex; gap: 6px; margin: 16px 0 6px; }
+.progress span { flex: 1; height: 5px; border-radius: 3px; background: var(--border); }
+.progress span.on { background: var(--accent); }
+.step-label { font-size: 12px; color: var(--fg3); margin: 0 0 12px; font-variant-numeric: tabular-nums; }
+h2 { font-size: 18px; margin: 0 0 4px; text-wrap: balance; }
+.lead { font-size: 13px; color: var(--fg2); margin: 0 0 16px; }
+
+.block { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 18px; margin-bottom: 14px; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field > label, .field > .q { font-size: 14px; font-weight: 700; }
+.opt { color: var(--fg3); font-size: 11px; font-weight: 500; margin-left: 6px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 420px) { .row2 { grid-template-columns: 1fr; } }
+
+input[type=text], input[type=tel], input[type=date] {
+  font: inherit; font-size: 16px; color: var(--fg); background: var(--surface2);
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; width: 100%;
+}
+input:focus-visible { outline: none; border-color: var(--accent); }
+.invalid { box-shadow: 0 0 0 2px var(--red); border-radius: var(--radius-sm); }
+.err { color: var(--red); font-size: 13px; font-weight: 700; margin: 12px 0 0; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chips.stack { flex-direction: column; }
+.chip { position: relative; }
+.chip input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.chip span { display: inline-block; padding: 8px 14px; border: 1.5px solid var(--border); border-radius: 999px; font-size: 14px; background: var(--surface); color: var(--fg2); cursor: pointer; user-select: none; }
+.chips.stack .chip span { display: block; border-radius: var(--radius-sm); }
+.chip input:checked + span { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 初診・再診の大ボタン */
+.visit { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.visit .chip span { display: flex; flex-direction: column; align-items: center; gap: 2px; border-radius: var(--radius); padding: 18px 8px; text-align: center; }
+.visit .chip span b { font-size: 17px; color: var(--fg); }
+.visit .chip span small { font-size: 12px; color: var(--fg3); }
+.visit .chip input:checked + span b, .visit .chip input:checked + span small { color: #fff; }
+
+/* 日付 */
+.days { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x proximity; }
+.day { position: relative; flex: 0 0 auto; scroll-snap-align: start; }
+.day input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.day span { display: flex; flex-direction: column; align-items: center; width: 58px; padding: 8px 0 6px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); cursor: pointer; font-variant-numeric: tabular-nums; }
+.day span .m { font-size: 11px; color: var(--fg3); }
+.day span .d { font-size: 20px; font-weight: 700; line-height: 1.2; }
+.day span .w { font-size: 12px; font-weight: 700; color: var(--fg2); }
+.day.sun .w { color: var(--sun); } .day.sat .w { color: var(--sat); }
+.day span .x { font-size: 10px; color: var(--fg3); }
+.day input:disabled + span { opacity: .4; cursor: default; background: var(--surface2); }
+.day input:checked + span { background: var(--accent); border-color: var(--accent); }
+.day input:checked + span * { color: #fff !important; }
+.day input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.slots-title { font-size: 12px; font-weight: 700; color: var(--fg3); letter-spacing: .05em; margin: 4px 0 0; }
+.slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+@media (max-width: 360px) { .slots { grid-template-columns: repeat(3, 1fr); } }
+.slots .chip span { display: block; text-align: center; padding: 8px 0; border-radius: var(--radius-sm); font-variant-numeric: tabular-nums; }
+.empty { font-size: 13px; color: var(--fg3); margin: 0; }
+.picked-when { font-size: 15px; font-weight: 700; color: var(--accent); margin: 0; font-variant-numeric: tabular-nums; }
+
+/* 人体図 */
+.bodymap { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.bodyview { text-align: center; }
+.bodyview p { margin: 0; font-size: 12px; font-weight: 700; color: var(--fg2); }
+.bodyview svg { width: 100%; max-width: 170px; height: auto; }
+.bodyview .part { fill: var(--body); stroke: var(--body-line); stroke-width: 1; cursor: pointer; }
+.bodyview .part.sel { fill: var(--accent); stroke: var(--accent); }
+.bodyview .part:focus-visible { outline: none; stroke: var(--fg); stroke-width: 2; }
+.bodyview text { fill: var(--fg3); font-size: 10px; font-family: var(--font); }
+.picked { display: flex; flex-wrap: wrap; gap: 6px; min-height: 30px; }
+.picked .tagp { font-size: 13px; background: var(--accent-light); color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 2px 10px; cursor: pointer; font-family: inherit; }
+.picked .none { font-size: 13px; color: var(--fg3); }
+
+.notice { border-radius: var(--radius-sm); padding: 10px 12px; font-size: 13px; line-height: 1.7; margin: 0; }
+.notice.warn { background: var(--red-bg); border: 1px solid var(--red); }
+.notice.info { background: var(--accent-light); border: 1px solid var(--accent); }
+.notice b { color: var(--accent); }
+.notice.warn b { color: var(--red); }
+
+.nav { display: flex; gap: 10px; margin-top: 18px; }
+.btn { font: inherit; font-weight: 700; font-size: 15px; border-radius: var(--radius-sm); padding: 13px 18px; cursor: pointer; border: 1.5px solid var(--border); background: var(--surface); color: var(--fg); text-align: center; text-decoration: none; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; flex: 1; }
+.btn.line { background: var(--line); border-color: var(--line); color: #fff; display: block; font-size: 16px; padding: 15px 18px; }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+dl.confirm { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; }
+dl.confirm dt { color: var(--fg3); font-size: 12px; font-weight: 700; padding-top: 2px; white-space: nowrap; }
+dl.confirm dd { margin: 0; min-width: 0; word-break: break-word; }
+dl.confirm dd.when { font-weight: 700; color: var(--accent); font-size: 16px; }
+pre.summary { white-space: pre-wrap; word-break: break-word; font-family: var(--font); font-size: 13px; background: var(--surface2); border-radius: var(--radius-sm); padding: 12px; margin: 0; }
+details.raw summary { font-size: 12px; color: var(--fg3); cursor: pointer; }
+details.raw pre { margin-top: 8px; }
+.hint { font-size: 12px; color: var(--fg3); margin: 0; }
+.contact { font-size: 13px; color: var(--fg2); text-align: center; margin: 18px 0 0; }
+.contact b { font-variant-numeric: tabular-nums; user-select: all; }
+@media (prefers-reduced-motion: no-preference) { .step { animation: fade .2s ease; } @keyframes fade { from { opacity: .4 } to { opacity: 1 } } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header class="top">
+  <p class="sub">千早駅整骨院</p>
+  <h1>Web予約</h1>
+  <p class="tag">タップで選んで、LINEで送るだけ</p>
+</header>
+
+<form id="form" novalidate>
+<div class="progress" id="progress" aria-hidden="true"></div>
+<p class="step-label" id="stepLabel"></p>
+
+<!-- ご来院は -->
+<section class="step" data-step="visit">
+  <h2>当てはまる方を選んでください</h2>
+  <p class="lead">最後のご来院から1か月以上あいた方は、初めての方と同じく問診票の入力をお願いしています。</p>
+  <div class="block">
+    <div class="field" data-required="visit">
+      <div class="visit">
+        <label class="chip"><input type="radio" name="visit" id="v-new" value="初診"><span><b>初めての方・<br>久しぶりの方</b><small>1か月以上あいた方</small><small>問診票つき・約3分</small></span></label>
+        <label class="chip"><input type="radio" name="visit" id="v-re" value="再診"><span><b>通院中の方</b><small>最後の来院から<br>1か月以内</small><small>約1分</small></span></label>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 日時 -->
+<section class="step" data-step="when" hidden>
+  <h2>ご希望の日時</h2>
+  <p class="lead">空き状況を確認して、LINEで確定のご連絡をします。</p>
+  <div class="block">
+    <div class="field" data-required="date">
+      <span class="q">日にち</span>
+      <div class="days" id="days"></div>
+    </div>
+    <div class="field" data-required="time">
+      <span class="q">時間</span>
+      <div id="slots"><p class="empty">先に日にちを選んでください。</p></div>
+    </div>
+    <div class="field" data-required="flex">
+      <span class="q">ほかの時間になった場合</span>
+      <div class="chips stack">
+        <label class="chip"><input type="radio" name="flex" id="fx1" value="この時間のみ"><span>この時間のみ希望</span></label>
+        <label class="chip"><input type="radio" name="flex" id="fx2" value="前後1時間ならOK"><span>前後1時間ならOK</span></label>
+        <label class="chip"><input type="radio" name="flex" id="fx3" value="別の日時でもOK"><span>別の日時でもOK（相談したい）</span></label>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 再診：お名前と今日のご相談 -->
+<section class="step" data-step="re" hidden>
+  <h2>お名前と今回のご相談</h2>
+  <div class="block">
+    <div class="row2">
+      <div class="field" data-required="reName"><label for="reName">お名前</label><input type="text" id="reName" autocomplete="name" placeholder="千早 太郎"></div>
+      <div class="field"><label for="reTel">電話番号<span class="opt">任意</span></label><input type="tel" id="reTel" autocomplete="tel" inputmode="tel" placeholder="090-1234-5678"></div>
+    </div>
+    <div class="field" data-required="reWhat"><span class="q">今回は</span>
+      <div class="chips stack">
+        <label class="chip"><input type="radio" name="reWhat" id="rw1" value="前回と同じ症状・いつもの施術"><span>前回と同じ症状・いつもの施術</span></label>
+        <label class="chip"><input type="radio" name="reWhat" id="rw2" value="別の場所が痛い・新しいケガ"><span>別の場所が痛い・新しいケガ</span></label>
+        <label class="chip"><input type="radio" name="reWhat" id="rw3" value="メニューを変えたい・相談したい"><span>メニューを変えたい・相談したい</span></label>
+      </div>
+    </div>
+    <div class="field" id="reNewBlock" hidden>
+      <span class="q">どこが痛みますか</span>
+      <div class="chips" id="reAreas"></div>
+      <input type="text" id="reAreaOther" placeholder="ほかの場所・いつから・何をして（例：昨日走っていて左ふくらはぎ）">
+    </div>
+    <div class="field"><label for="reNote">伝えておきたいこと<span class="opt">任意</span></label>
+      <input type="text" id="reNote" placeholder="例：前回より楽になった／今日は時間が短めだと助かる">
+    </div>
+  </div>
+</section>
+
+<!-- 初診：あなたについて -->
+<section class="step" data-step="about" hidden>
+  <h2>あなたについて</h2>
+  <div class="block">
+    <div class="row2">
+      <div class="field" data-required="name"><label for="name">お名前</label><input type="text" id="name" autocomplete="name" placeholder="千早 太郎"></div>
+      <div class="field" data-required="kana"><label for="kana">ふりがな</label><input type="text" id="kana" placeholder="ちはや たろう"></div>
+    </div>
+    <div class="row2">
+      <div class="field" data-required="birth"><label for="birth">生年月日</label><input type="date" id="birth" autocomplete="bday"></div>
+      <div class="field" data-required="tel"><label for="tel">電話番号</label><input type="tel" id="tel" autocomplete="tel" inputmode="tel" placeholder="090-1234-5678"></div>
+    </div>
+    <div class="field" data-required="history"><span class="q">当院のご利用は</span>
+      <div class="chips">
+        <label class="chip"><input type="radio" name="history" id="hs-new" value="初めて"><span>初めて</span></label>
+        <label class="chip"><input type="radio" name="history" id="hs-back" value="以前来たことがある（1か月以上ぶり）"><span>以前来たことがある</span></label>
+      </div>
+    </div>
+    <div class="field"><label for="sport">お仕事・部活・スポーツ<span class="opt">任意</span></label><input type="text" id="sport" placeholder="例：デスクワーク／高校のサッカー部"></div>
+    <div class="field"><span class="q">当院を知ったきっかけ</span>
+      <div class="chips">
+        <label class="chip"><input type="radio" name="source" id="src-ig" value="Instagram"><span>Instagram</span></label>
+        <label class="chip"><input type="radio" name="source" id="src-g" value="Google"><span>Google</span></label>
+        <label class="chip"><input type="radio" name="source" id="src-ref" value="ご紹介"><span>ご紹介</span></label>
+        <label class="chip"><input type="radio" name="source" id="src-sign" value="看板・通りがかり"><span>看板・通りがかり</span></label>
+        <label class="chip"><input type="radio" name="source" id="src-other" value="その他"><span>その他</span></label>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 初診：症状 -->
+<section class="step" data-step="symptom" hidden>
+  <h2>どこが、どんな感じですか</h2>
+  <p class="lead">痛む場所を図でタップしてください。</p>
+  <div class="block">
+    <div class="field" data-required="area">
+      <div class="bodymap" id="bodymap"></div>
+      <div class="picked" id="picked" aria-live="polite"></div>
+      <input type="text" id="areaOther" placeholder="図にない場所（例：右手の親指の付け根）">
+    </div>
+    <div class="field" data-required="feel"><span class="q">今の状態にいちばん近いもの</span>
+      <div class="chips stack">
+        <label class="chip"><input type="radio" name="feel" id="f1" value="1"><span>じっとしていても強く痛む・我慢できない</span></label>
+        <label class="chip"><input type="radio" name="feel" id="f3" value="3"><span>動かすと強く痛む・動かせない</span></label>
+        <label class="chip"><input type="radio" name="feel" id="f4" value="4"><span>我慢できるが動かすと痛い</span></label>
+        <label class="chip"><input type="radio" name="feel" id="f5" value="5"><span>時々痛い・重い・だるい</span></label>
+        <label class="chip"><input type="radio" name="feel" id="f6" value="6"><span>痛みはないが不快・体を見てほしい</span></label>
+      </div>
+    </div>
+    <div class="field" data-required="since"><span class="q">いつからですか</span>
+      <div class="chips">
+        <label class="chip"><input type="radio" name="since" id="t0" value="今日・昨日"><span>今日・昨日</span></label>
+        <label class="chip"><input type="radio" name="since" id="t7" value="1週間以内"><span>1週間以内</span></label>
+        <label class="chip"><input type="radio" name="since" id="t14" value="2週間以内"><span>2週間以内</span></label>
+        <label class="chip"><input type="radio" name="since" id="t30" value="1か月以内"><span>1か月以内</span></label>
+        <label class="chip"><input type="radio" name="since" id="tlong" value="それより前・わからない"><span>それより前・わからない</span></label>
+      </div>
+    </div>
+    <div class="field" data-required="how"><span class="q">どうして痛めましたか</span>
+      <div class="chips">
+        <label class="chip"><input type="radio" name="how" id="h-twist" value="ひねった"><span>ひねった</span></label>
+        <label class="chip"><input type="radio" name="how" id="h-hit" value="打った・ぶつけた"><span>打った・ぶつけた</span></label>
+        <label class="chip"><input type="radio" name="how" id="h-fall" value="転んだ・落ちた"><span>転んだ・落ちた</span></label>
+        <label class="chip"><input type="radio" name="how" id="h-lift" value="重い物を持った・急に伸ばした"><span>重い物を持った・急に伸ばした</span></label>
+        <label class="chip"><input type="radio" name="how" id="h-over" value="使いすぎ"><span>使いすぎ</span></label>
+        <label class="chip"><input type="radio" name="how" id="h-none" value="きっかけはない"><span>きっかけはない</span></label>
+      </div>
+    </div>
+    <div class="field" id="whereBlock" data-required="where" hidden><span class="q">どこで・何をしていて</span>
+      <div class="chips">
+        <label class="chip"><input type="radio" name="where" id="w-home" value="家で・日常生活"><span>家で・日常生活</span></label>
+        <label class="chip"><input type="radio" name="where" id="w-sport" value="運動・部活中"><span>運動・部活中</span></label>
+        <label class="chip"><input type="radio" name="where" id="w-work" value="仕事・通勤中"><span>仕事・通勤中</span></label>
+        <label class="chip"><input type="radio" name="where" id="w-car" value="交通事故"><span>交通事故</span></label>
+        <label class="chip"><input type="radio" name="where" id="w-other" value="その他"><span>その他</span></label>
+      </div>
+      <input type="text" id="causeDetail" placeholder="そのときの様子（例：練習中にジャンプの着地で右足首をひねった）">
+    </div>
+    <div class="field"><span class="q">このことで病院に今も通っていますか</span>
+      <div class="chips">
+        <label class="chip"><input type="radio" name="otherNow" id="on-no" value="いいえ"><span>いいえ</span></label>
+        <label class="chip"><input type="radio" name="otherNow" id="on-yes" value="通っている"><span>通っている</span></label>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 初診：お体とご希望 -->
+<section class="step" data-step="body" hidden>
+  <h2>お体のことと、ご希望</h2>
+  <div class="block">
+    <div class="field" data-required="safety"><span class="q">当てはまるものを選んでください</span>
+      <div class="chips">
+        <label class="chip"><input type="checkbox" name="safety" id="sf-none" value="特になし"><span>特になし</span></label>
+        <label class="chip"><input type="checkbox" name="safety" id="sf-pm" value="ペースメーカー"><span>ペースメーカー</span></label>
+        <label class="chip"><input type="checkbox" name="safety" id="sf-preg" value="妊娠中"><span>妊娠中</span></label>
+        <label class="chip"><input type="checkbox" name="safety" id="sf-metal" value="体内に金属"><span>体内に金属</span></label>
+        <label class="chip"><input type="checkbox" name="safety" id="sf-ill" value="治療中の病気・服薬"><span>治療中の病気・服薬</span></label>
+        <label class="chip"><input type="checkbox" name="safety" id="sf-allergy" value="アレルギー"><span>アレルギー</span></label>
+      </div>
+      <input type="text" id="safetyText" placeholder="内容（例：高血圧の薬、右足首にボルト）" hidden>
+    </div>
+    <div class="field" data-required="expect"><span class="q">どうなりたいですか（いくつでも）</span>
+      <div class="chips">
+        <label class="chip"><input type="checkbox" name="expect" id="e1" value="痛みを取りたい"><span>痛みを取りたい</span></label>
+        <label class="chip"><input type="checkbox" name="expect" id="e2" value="再発しない体にしたい"><span>再発しない体にしたい</span></label>
+        <label class="chip"><input type="checkbox" name="expect" id="e3" value="ゆがみを整えたい・メンテナンス"><span>ゆがみを整えたい・メンテナンス</span></label>
+        <label class="chip"><input type="checkbox" name="expect" id="e4" value="スポーツのパフォーマンスを上げたい"><span>スポーツのパフォーマンスを上げたい</span></label>
+        <label class="chip"><input type="checkbox" name="expect" id="e5" value="ダイエット・お腹まわり"><span>ダイエット・お腹まわり</span></label>
+        <label class="chip"><input type="checkbox" name="expect" id="e6" value="疲れ・睡眠・自律神経"><span>疲れ・睡眠・自律神経</span></label>
+      </div>
+    </div>
+    <div class="field"><label for="request">その他、伝えておきたいこと<span class="opt">任意</span></label>
+      <input type="text" id="request" placeholder="例：強いマッサージは苦手／来週の試合までに良くしたい">
+    </div>
+    <p class="notice info">保険の説明と同意のサインは、ご来院時に受付でお願いします（1分ほどです）。</p>
+  </div>
+</section>
+
+<!-- 確認 -->
+<section class="step" data-step="confirm" hidden>
+  <h2>この内容で送ります</h2>
+  <p class="lead" id="sendLead">下の緑のボタンを押すと、当院のLINEトークに予約内容が送られます。</p>
+  <div class="block">
+    <dl class="confirm" id="confirmList"></dl>
+    <details class="raw"><summary>送信される文面を見る</summary><pre class="summary" id="summary"></pre></details>
+  </div>
+  <a class="btn line" id="lineBtn" href="#" target="_blank" rel="noopener">LINEで予約を送る</a>
+  <p class="err" id="sendErr" hidden></p>
+  <div class="nav" id="copyRow">
+    <button type="button" class="btn" id="copyBtn" style="flex:1">うまく送れない時：内容をコピー</button>
+  </div>
+  <p class="hint" id="copyMsg" hidden></p>
+  <p class="hint" style="margin-top:12px">予約は、当院からの返信をもって確定です。</p>
+</section>
+
+<p class="err" id="errMsg" hidden></p>
+<div class="nav" id="nav">
+  <button type="button" class="btn" id="backBtn" hidden>戻る</button>
+  <button type="submit" class="btn primary" id="nextBtn">次へ</button>
+</div>
+</form>
+
+<section id="done" hidden>
+  <div class="block" style="margin-top:18px;text-align:center">
+    <h2>予約を送信しました</h2>
+    <p class="lead" style="margin:0">空き状況を確認して、このトークでご連絡します。返信をもって予約確定です。</p>
+  </div>
+</section>
+
+<p class="contact">お電話でのご予約 <b id="telText"></b></p>
+</div>
+
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script>
+(function () {
+  // ===== 院の設定（ここを書き換えると反映されます）=====
+  const CLINIC = {
+    liffId: 'ここにLIFF IDを入れる',
+    lineId: '@715gkvje',
+    tel: '092-672-6640',
+    daysAhead: 14,          // 何日先まで予約を受けるか
+    stepMin: 15,            // 予約枠の刻み（分）
+    lastBeforeClose: 30,    // 受付終了の何分前まで予約できるか
+    leadMin: 60,            // 当日予約は今から何分後以降
+    // 曜日ごとの受付時間（0=日 … 6=土）。空配列は休診
+    hours: {
+      0: [['10:00', '19:00']],
+      1: [['12:00', '21:00']],
+      2: [['15:00', '21:00']],
+      3: [['12:00', '21:00']],
+      4: [['12:00', '21:00']],
+      5: [['12:00', '21:00']],
+      6: [['10:00', '19:00']]
+    },
+    // 祝日の受付時間（土日と同じ）
+    holidayHours: [['10:00', '19:00']],
+    holidays: ['2026-11-03','2026-11-23','2027-01-01','2027-01-11','2027-02-11','2027-02-23','2027-03-22','2027-04-29','2027-05-03','2027-05-04','2027-05-05','2027-07-19','2027-08-11','2027-09-20','2027-09-23','2027-10-11','2027-11-03','2027-11-23'],
+    // 臨時休診日（YYYY-MM-DD）。年末年始などはここに追加
+    closed: []
+  };
+  // =====================================================
+
+  const $ = (id) => document.getElementById(id);
+  const form = $('form');
+  $('telText').textContent = CLINIC.tel;
+  const FLOWS = {
+    '初診': ['visit', 'when', 'about', 'symptom', 'body', 'confirm'],
+    '再診': ['visit', 'when', 're', 'confirm']
+  };
+  const LABEL = { visit: 'ご来院', when: '日時', re: 'お名前と症状', about: 'あなたについて', symptom: '症状', body: 'お体とご希望', confirm: '確認・送信' };
+  const radio = (n) => (document.querySelector(`input[name="${n}"]:checked`) || {}).value || '';
+  const checks = (n) => [...document.querySelectorAll(`input[name="${n}"]:checked`)].map((b) => b.value);
+  const val = (id) => $(id).value.trim();
+  let cur = 'visit';
+  const flow = () => FLOWS[radio('visit')] || ['visit', 'when', '…', 'confirm'];
+
+  // ---- 日付と時間 ----
+  const W = ['日', '月', '火', '水', '木', '金', '土'];
+  const pad = (n) => String(n).padStart(2, '0');
+  const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const toMin = (s) => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
+  const fromMin = (m) => `${Math.floor(m / 60)}:${pad(m % 60)}`;
+  function slotsFor(d) {
+    if (CLINIC.closed.includes(ymd(d))) return [];
+    const now = new Date(), today = ymd(now) === ymd(d);
+    const nowMin = now.getHours() * 60 + now.getMinutes() + CLINIC.leadMin;
+    const out = [];
+    (CLINIC.holidays.includes(ymd(d)) ? CLINIC.holidayHours : (CLINIC.hours[d.getDay()] || [])).forEach(([a, b]) => {
+      const groupe = [];
+      for (let m = toMin(a); m <= toMin(b) - CLINIC.lastBeforeClose; m += CLINIC.stepMin) if (!today || m >= nowMin) groupe.push(m);
+      [[0, 12 * 60, '午前'], [12 * 60, 17 * 60, '午後'], [17 * 60, 24 * 60, '夕方以降']].forEach(([lo, hi, name]) => {
+        const g = groupe.filter((m) => m >= lo && m < hi); if (g.length) { g.name = name; out.push(g); }
+      });
+    });
+    return out;
+  }
+  const dates = [];
+  (function buildDays() {
+    const base = new Date(); base.setHours(0, 0, 0, 0);
+    let html = '';
+    for (let i = 0; i < CLINIC.daysAhead; i++) {
+      const d = new Date(base); d.setDate(base.getDate() + i); dates.push(d);
+      const open = slotsFor(d).length > 0, w = d.getDay();
+      const tag = i === 0 ? '今日' : i === 1 ? '明日' : `${d.getMonth() + 1}月`;
+      html += `<label class="day${w === 0 ? ' sun' : w === 6 ? ' sat' : ''}"><input type="radio" name="date" id="d${i}" value="${i}"${open ? '' : ' disabled'}><span><span class="m">${tag}</span><span class="d">${d.getDate()}</span><span class="w">${W[w]}</span>${open ? '' : '<span class="x">休診</span>'}</span></label>`;
+    }
+    $('days').innerHTML = html;
+  })();
+  function renderSlots() {
+    const i = radio('date'); if (i === '') return;
+    const groups = slotsFor(dates[Number(i)]);
+    if (!groups.length) { $('slots').innerHTML = '<p class="empty">この日はもう予約できる時間がありません。別の日を選んでください。</p>'; return; }
+    $('slots').innerHTML = groups.map((g, gi) => `<p class="slots-title">${g.name}</p><div class="slots">${g.map((m) => `<label class="chip"><input type="radio" name="time" id="tm${gi}-${m}" value="${fromMin(m)}"><span>${fromMin(m)}</span></label>`).join('')}</div>`).join('');
+  }
+  const whenText = () => { const i = radio('date'); if (i === '') return ''; const d = dates[Number(i)]; return `${d.getMonth() + 1}月${d.getDate()}日（${W[d.getDay()]}）${radio('time')}`; };
+
+  // ---- 人体図（問診票と同じ） ----
+  const PARTS = {
+    front: [['頭・顔','e',60,22,13,16,''],['首','r',53,38,14,10,''],['肩','e',38,54,10,7,'L'],['胸','r',44,50,32,26,''],['お腹','r',44,76,32,28,''],['股関節','r',44,104,32,18,''],['上腕','r',24,60,12,34,'L'],['肘','e',30,100,6,6,'L'],['手首','r',23,106,12,30,'L'],['手・指','e',28,146,7,9,'L'],['太もも','r',44,122,15,46,'L'],['膝','e',51,174,7,7,'L'],['すね','r',45,181,13,42,'L'],['足首・足','e',51,232,8,8,'L']],
+    back: [['後頭部','e',60,22,13,16,''],['首の後ろ','r',53,38,14,10,''],['肩・肩甲骨','e',38,54,10,7,'L'],['背中','r',44,50,32,26,''],['腰','r',44,76,32,28,''],['お尻','r',44,104,32,18,''],['上腕','r',24,60,12,34,'L'],['肘','e',30,100,6,6,'L'],['手首','r',23,106,12,30,'L'],['手・指','e',28,146,7,9,'L'],['太もも裏','r',44,122,15,46,'L'],['膝裏','e',51,174,7,7,'L'],['ふくらはぎ','r',45,181,13,42,'L'],['かかと','e',51,232,8,8,'L']]
+  };
+  const selected = new Set();
+  const shape = (k, x, y, a, b, n) => { const at = `class="part" tabindex="0" role="button" aria-label="${n}" data-name="${n}"`; return k === 'e' ? `<ellipse ${at} cx="${x}" cy="${y}" rx="${a}" ry="${b}"/>` : `<rect ${at} x="${x}" y="${y}" width="${a}" height="${b}" rx="5"/>`; };
+  function buildView(v) {
+    const L = v === 'front' ? '右' : '左', R = v === 'front' ? '左' : '右'; let s = '';
+    PARTS[v].forEach(([n, k, x, y, a, b, pair]) => {
+      if (pair === 'L') { const mx = k === 'r' ? 120 - x - a : 120 - x; s += shape(k, x, y, a, b, L + n) + shape(k, mx, y, a, b, R + n); }
+      else s += shape(k, x, y, a, b, n);
+    });
+    s += `<text x="10" y="252">${L}</text><text x="104" y="252">${R}</text>`;
+    return `<div class="bodyview"><p>${v === 'front' ? '前' : '後ろ'}</p><svg viewBox="0 0 120 258" aria-label="${v === 'front' ? '体の前側' : '体の後ろ側'}">${s}</svg></div>`;
+  }
+  $('bodymap').innerHTML = buildView('front') + buildView('back');
+  function renderPicked() {
+    document.querySelectorAll('.part').forEach((p) => p.classList.toggle('sel', selected.has(p.dataset.name)));
+    $('picked').innerHTML = selected.size ? [...selected].map((n) => `<button type="button" class="tagp" data-name="${n}">${n} ×</button>`).join('') : '<span class="none">まだ選ばれていません</span>';
+  }
+  function togglePart(n) { selected.has(n) ? selected.delete(n) : selected.add(n); renderPicked(); clearInvalid($('bodymap')); }
+  $('bodymap').addEventListener('click', (e) => { const p = e.target.closest('.part'); if (p) togglePart(p.dataset.name); });
+  $('bodymap').addEventListener('keydown', (e) => { const p = e.target.closest('.part'); if (p && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); togglePart(p.dataset.name); } });
+  $('picked').addEventListener('click', (e) => { const b = e.target.closest('.tagp'); if (b) togglePart(b.dataset.name); });
+  renderPicked();
+
+  // 再診の簡易部位
+  $('reAreas').innerHTML = ['首', '肩', '背中', '腰', 'お尻・股関節', '腕・肘', '手首・手', '膝', '足首・足', 'ふくらはぎ・太もも'].map((n, i) => `<label class="chip"><input type="checkbox" name="reArea" id="ra${i}" value="${n}"><span>${n}</span></label>`).join('');
+
+  // ---- 連動 ----
+  const TRAUMA = ['ひねった', '打った・ぶつけた', '転んだ・落ちた', '重い物を持った・急に伸ばした'];
+  function sync() {
+    $('whereBlock').hidden = !TRAUMA.includes(radio('how'));
+    $('safetyText').hidden = !checks('safety').some((v) => v !== '特になし');
+    $('reNewBlock').hidden = radio('reWhat') !== '別の場所が痛い・新しいケガ';
+  }
+  function clearInvalid(el) { const f = el.closest('.invalid'); if (f) f.classList.remove('invalid'); }
+  form.addEventListener('change', (e) => {
+    if (e.target.name === 'date') renderSlots();
+    if (e.target.name === 'safety') {
+      if (e.target.id === 'sf-none' && e.target.checked) document.querySelectorAll('input[name=safety]').forEach((b) => { if (b.id !== 'sf-none') b.checked = false; });
+      else if (e.target.checked) $('sf-none').checked = false;
+    }
+    if (e.target.name === 'visit' && cur === 'visit') { renderProgress(); setTimeout(() => form.requestSubmit ? form.requestSubmit() : null, 180); }
+    sync(); clearInvalid(e.target);
+  });
+  form.addEventListener('input', (e) => clearInvalid(e.target));
+
+  // ---- 入力チェック ----
+  function filled(key) {
+    switch (key) {
+      case 'area': return selected.size > 0 || val('areaOther') !== '';
+      case 'safety': case 'expect': return checks(key).length > 0;
+      case 'name': case 'kana': case 'birth': case 'tel': case 'reName': return val(key) !== '';
+      default: return radio(key) !== '';
+    }
+  }
+  function validate(step) {
+    let first = null;
+    document.querySelector(`.step[data-step="${step}"]`).querySelectorAll('[data-required]').forEach((el) => {
+      if (el.hidden || el.closest('[hidden]')) { el.classList.remove('invalid'); return; }
+      const ok = filled(el.dataset.required); el.classList.toggle('invalid', !ok); if (!ok && !first) first = el;
+    });
+    if (first) { $('errMsg').textContent = '赤枠のところを選んでください。'; $('errMsg').hidden = false; first.scrollIntoView({ behavior: 'smooth', block: 'center' }); return false; }
+    $('errMsg').hidden = true; return true;
+  }
+
+  // ---- 画面切り替え ----
+  function renderProgress() {
+    const f = flow(), idx = f.indexOf(cur);
+    $('progress').innerHTML = f.map((_, i) => `<span class="${i <= idx ? 'on' : ''}"></span>`).join('');
+    $('stepLabel').textContent = `ステップ ${idx + 1} / ${f.length}　${LABEL[cur]}`;
+  }
+  function go(step) {
+    cur = step;
+    document.querySelectorAll('.step').forEach((s) => { s.hidden = s.dataset.step !== step; });
+    const f = flow(), idx = f.indexOf(step);
+    $('backBtn').hidden = idx === 0;
+    $('nextBtn').hidden = step === 'confirm';
+    $('nextBtn').textContent = f[idx + 1] === 'confirm' ? '確認へ' : '次へ';
+    $('errMsg').hidden = true;
+    if (step === 'confirm') buildConfirm();
+    renderProgress();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  $('backBtn').addEventListener('click', () => { const f = flow(); go(f[f.indexOf(cur) - 1]); });
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!validate(cur)) return;
+    const f = flow(); go(f[f.indexOf(cur) + 1]);
+  });
+
+  // ---- 送信文面 ----
+  const FEEL = { '1': 'じっとしていても強く痛む', '3': '動かすと強く痛む', '4': '動かすと痛い', '5': '時々痛い・重い', '6': '痛みはないが体を見てほしい' };
+  const j = (a) => (a && a.length ? a.join('、') : '—');
+  function ageOf(b) { if (!b) return null; const d = new Date(b), n = new Date(); if (isNaN(d)) return null; let a = n.getFullYear() - d.getFullYear(); if (n.getMonth() < d.getMonth() || (n.getMonth() === d.getMonth() && n.getDate() < d.getDate())) a--; return a; }
+  let text = '';
+  function buildConfirm() {
+    const isNew = radio('visit') === '初診';
+    const when = whenText(), flex = radio('flex');
+    let rows, lines;
+    if (isNew) {
+      const a = ageOf(val('birth'));
+      const area = [...selected].concat(val('areaOther') ? [val('areaOther')] : []);
+      const cause = `${radio('how')}${!$('whereBlock').hidden && radio('where') ? '（' + radio('where') + '）' : ''}`;
+      rows = [['日時', when, 'when'], ['', flex], ['区分', radio('history') === '初めて' ? '初めて（問診票つき）' : '1か月以上ぶり（問診票つき）'], ['お名前', `${val('name')}（${val('kana')}）${a !== null ? '　' + a + '歳' : ''}`], ['電話', val('tel')], ['場所', j(area)], ['状態', FEEL[radio('feel')] || '—'], ['いつ・原因', `${radio('since')}／${cause}`]];
+      lines = [
+        radio('history') === '初めて' ? '【Web予約・初診】' : '【Web予約・1か月以上ぶり（初検扱い）】',
+        `希望日時：${when}（${flex}）`,
+        `お名前：${val('name')}（${val('kana')}）${a !== null ? a + '歳' : ''}`,
+        `電話：${val('tel')}`,
+        val('sport') || radio('source') ? `仕事・スポーツ：${val('sport') || '—'}　きっかけ：${radio('source') || '—'}` : null,
+        '',
+        '＜問診＞',
+        `場所：${j(area)}`,
+        `状態：${FEEL[radio('feel')] || '—'}`,
+        `いつ：${radio('since')}　原因：${cause}`,
+        val('causeDetail') && !$('whereBlock').hidden ? `様子：${val('causeDetail')}` : null,
+        radio('otherNow') ? `病院に通院中：${radio('otherNow')}` : null,
+        `お体：${j(checks('safety'))}${val('safetyText') ? '（' + val('safetyText') + '）' : ''}`,
+        `希望：${j(checks('expect'))}`,
+        val('request') ? `伝えたいこと：${val('request')}` : null
+      ];
+    } else {
+      const areas = checks('reArea').concat(val('reAreaOther') ? [val('reAreaOther')] : []);
+      const what = radio('reWhat') + (!$('reNewBlock').hidden && areas.length ? `（${j(areas)}）` : '');
+      rows = [['日時', when, 'when'], ['', flex], ['区分', '通院中'], ['お名前', val('reName')], val('reTel') ? ['電話', val('reTel')] : null, ['今回', what], val('reNote') ? ['伝えたいこと', val('reNote')] : null].filter(Boolean);
+      lines = [
+        '【Web予約・通院中】',
+        `希望日時：${when}（${flex}）`,
+        `お名前：${val('reName')}`,
+        val('reTel') ? `電話：${val('reTel')}` : null,
+        `今回：${what}`,
+        val('reNote') ? `伝えたいこと：${val('reNote')}` : null
+      ];
+    }
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    $('confirmList').innerHTML = rows.map(([k, v, c]) => `<dt>${esc(k)}</dt><dd${c ? ` class="${c}"` : ''}>${esc(v)}</dd>`).join('');
+    text = lines.filter((x) => x !== null).join('\n');
+    $('summary').textContent = text;
+    $('lineBtn').href = `https://line.me/R/oaMessage/${encodeURIComponent(CLINIC.lineId)}/?${encodeURIComponent(text)}`;
+    $('copyMsg').hidden = true;
+  }
+  $('copyBtn').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(text); $('copyMsg').textContent = `コピーしました。LINEで「${CLINIC.lineId}」のトークに貼り付けて送信してください。`; }
+    catch (err) { const r = document.createRange(); r.selectNodeContents($('summary')); $('summary').closest('details').open = true; const s = getSelection(); s.removeAllRanges(); s.addRange(r); $('copyMsg').textContent = '文面を選択しました。長押しでコピーしてください。'; }
+    $('copyMsg').hidden = false;
+  });
+
+  // ---- LIFF：LINEの中で開いたときは、ボタン1つでトークに送信 ----
+  let inLiff = false;
+  if (window.liff) {
+    liff.init({ liffId: CLINIC.liffId }).then(() => {
+      inLiff = liff.isInClient() && liff.isApiAvailable('sendMessages');
+      if (inLiff) $('copyRow').hidden = true;
+    }).catch(() => { inLiff = false; });
+  }
+  $('lineBtn').addEventListener('click', async (e) => {
+    if (!inLiff) return; // LINEの外で開いたときは、トークに文面を入れるリンクとして動く
+    e.preventDefault();
+    const btn = $('lineBtn'); btn.textContent = '送信中…'; btn.style.pointerEvents = 'none'; $('sendErr').hidden = true;
+    try {
+      await liff.sendMessages([{ type: 'text', text }]);
+      form.hidden = true; $('done').hidden = false; window.scrollTo({ top: 0 });
+      setTimeout(() => { try { liff.closeWindow(); } catch (err) {} }, 1800);
+    } catch (err) {
+      btn.textContent = 'LINEで予約を送る'; btn.style.pointerEvents = '';
+      $('sendErr').textContent = '送信できませんでした。もう一度押すか、下のボタンで内容をコピーしてトークに貼り付けてください。';
+      $('sendErr').hidden = false; $('copyRow').hidden = false;
+    }
+  });
+
+  go('visit'); sync();
+})();
+</script>
+</body>
+</html>
