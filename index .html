@@ -217,6 +217,9 @@ details.raw pre { margin-top: 8px; }
 #mq .pnote{background:var(--red-bg);border:1px solid var(--red);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px}
 #mq .small{font-size:12px;color:var(--fg3)}
 @media (prefers-reduced-motion: no-preference) { .step { animation: fade .2s ease; } @keyframes fade { from { opacity: .4 } to { opacity: 1 } } }
+/* 予約台帳で埋まっている時間 */
+.slots .chip.busy span { text-decoration: line-through; opacity: .4; cursor: default; }
+.busy-note { font-size: 12px; color: var(--fg3); margin: 8px 0 0; }
 </style>
 </head>
 <body>
@@ -264,6 +267,7 @@ details.raw pre { margin-top: 8px; }
     <div class="field" data-required="time">
       <span class="q">時間</span>
       <div id="slots"><p class="empty">先に日にちを選んでください。</p></div>
+      <p class="busy-note" id="busyNote" hidden></p>
     </div>
     <div class="field" data-required="flex">
       <span class="q">ほかの時間になった場合</span>
@@ -799,6 +803,8 @@ function mqSummaryLines(pa){
   const CLINIC = {
     liffId: 'ここにLIFF IDを入れる',
     lineId: '@715gkvje',
+    // 予約台帳（Googleスプレッドシート）のウェブアプリURL（…/exec）。空欄なら台帳とはつながない
+    sheetUrl: 'https://script.google.com/macros/s/AKfycbxzSuZtADnU2dx7UCerXzRdf3JAaXN06e51kO7iij-Ovj-8BKG8KPdpGnC5CqepxBTo/exec',
     tel: '092-672-6640',
     daysAhead: 60,          // 何日先まで予約を受けるか（約2か月）
     stepMin: 15,            // 予約枠の刻み（分）
@@ -836,6 +842,8 @@ function mqSummaryLines(pa){
   let cur = 'visit';
   const flow = () => FLOWS[radio('visit')] || ['visit', 'when', '…', 'confirm'];
 
+  // 予約台帳の空き状況（下の「予約台帳の空き状況」で読み込む）
+  let BUSY = null, DUR = { new: 30, re: 15 }, busyState = 'off';
   // ---- 日付と時間 ----
   const W = ['日', '月', '火', '水', '木', '金', '土'];
   const pad = (n) => String(n).padStart(2, '0');
@@ -872,9 +880,9 @@ function mqSummaryLines(pa){
       const d = new Date(yy, mm, dn), w = d.getDay(), i = dates.findIndex((x) => ymd(x) === ymd(d));
       const cls = `day${w === 0 || CLINIC.holidays.includes(ymd(d)) ? ' sun' : w === 6 ? ' sat' : ''}${i === 0 ? ' today' : ''}`;
       if (i < 0) { html += `<label class="${cls}"><input type="radio" disabled aria-label="${mm + 1}月${dn}日 予約できません"><span><span class="d">${dn}</span></span></label>`; continue; }
-      const open = slotsFor(d).length > 0;
+      const all = slotsFor(d), open = all.some((g) => g.some((m) => !isBusy(d, m)));
       const closedDay = !(CLINIC.holidays.includes(ymd(d)) ? CLINIC.holidayHours : (CLINIC.hours[w] || [])).length || CLINIC.closed.includes(ymd(d));
-      const note = i === 0 ? '今日' : open ? '' : closedDay ? '休診' : '受付終了';
+      const note = i === 0 ? '今日' : open ? '' : closedDay ? '休診' : all.length ? '満' : '受付終了';
       html += `<label class="${cls}"><input type="radio" name="date" id="d${i}" value="${i}"${open ? '' : ' disabled'}${String(i) === selDate ? ' checked' : ''} aria-label="${mm + 1}月${dn}日（${W[w]}）${note}"><span><span class="d">${dn}</span>${note ? `<span class="x">${note}</span>` : ''}</span></label>`;
     }
     $('days').innerHTML = html;
@@ -886,10 +894,45 @@ function mqSummaryLines(pa){
     const i = selDate; if (i === '') return;
     const groups = slotsFor(dates[Number(i)]);
     if (!groups.length) { $('slots').innerHTML = '<p class="empty">この日はもう予約できる時間がありません。別の日を選んでください。</p>'; return; }
-    const sd = dates[Number(i)];
-    $('slots').innerHTML = `<p class="picked-when">${sd.getMonth() + 1}月${sd.getDate()}日（${W[sd.getDay()]}）の時間</p>` + groups.map((g, gi) => `<p class="slots-title">${g.name}</p><div class="slots">${g.map((m) => `<label class="chip"><input type="radio" name="time" id="tm${gi}-${m}" value="${fromMin(m)}"><span>${fromMin(m)}</span></label>`).join('')}</div>`).join('');
+    const sd = dates[Number(i)], picked = radio('time');
+    if (!groups.some((g) => g.some((m) => !isBusy(sd, m)))) { $('slots').innerHTML = '<p class="empty">この日は予約が埋まっています。別の日を選んでください。</p>'; return; }
+    $('slots').innerHTML = `<p class="picked-when">${sd.getMonth() + 1}月${sd.getDate()}日（${W[sd.getDay()]}）の時間</p>` + groups.map((g, gi) => `<p class="slots-title">${g.name}</p><div class="slots">${g.map((m) => (isBusy(sd, m) ? `<label class="chip busy"><input type="radio" disabled aria-label="${fromMin(m)} 埋まっています"><span>${fromMin(m)}</span></label>` : `<label class="chip"><input type="radio" name="time" id="tm${gi}-${m}" value="${fromMin(m)}"${picked === fromMin(m) ? ' checked' : ''}><span>${fromMin(m)}</span></label>`)).join('')}</div>`).join('');
   }
   const whenText = () => { const i = selDate; if (i === '') return ''; const d = dates[Number(i)]; return `${d.getMonth() + 1}月${d.getDate()}日（${W[d.getDay()]}）${radio('time')}`; };
+
+  // ---- 予約台帳の空き状況（埋まっている時間は押せなくする）----
+  const hm2 = (m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+  const needMin = () => (radio('visit') === '再診' ? DUR.re : DUR.new);
+  function isBusy(d, m) {
+    if (!BUSY) return false;
+    const list = BUSY[ymd(d)];
+    if (!list) return false;
+    if (list.includes('全日')) return true;
+    for (let t = m; t < m + needMin(); t += CLINIC.stepMin) if (list.includes(hm2(t))) return true;
+    return false;
+  }
+  function showBusyNote() {
+    const n = $('busyNote');
+    if (busyState === 'loading') { n.textContent = '空き状況を確認しています…'; n.hidden = false; }
+    else if (busyState === 'error') { n.textContent = '空き状況を読み込めませんでした。表示されている時間でも、埋まっている場合があります（院からの返信で確定します）。'; n.hidden = false; }
+    else if (busyState === 'ok') { n.textContent = '線が引かれた時間は、ほかの予約で埋まっています。'; n.hidden = false; }
+    else n.hidden = true;
+  }
+  function loadBusy() {
+    if (!CLINIC.sheetUrl || busyState === 'loading') return;
+    busyState = 'loading'; showBusyNote();
+    fetch(CLINIC.sheetUrl + (CLINIC.sheetUrl.includes('?') ? '&' : '?') + 't=' + Date.now())
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j || !j.ok) throw new Error('ng');
+        BUSY = j.busy || {};
+        if (j.durNew > 0) DUR.new = j.durNew;
+        if (j.durReg > 0) DUR.re = j.durReg;
+        busyState = 'ok';
+      })
+      .catch(() => { BUSY = null; busyState = 'error'; })
+      .finally(() => { buildDays(); renderSlots(); showBusyNote(); });
+  }
 
   // 再診の簡易部位
   $('reAreas').innerHTML = ['首', '肩・肩甲骨', '背中', '腰', 'お尻・股関節', '腕・肘', '手首・手', '太もも', '膝', 'ふくらはぎ・すね', '足首・足', '頭・顔', '全身'].map((n, i) => `<label class="chip"><input type="checkbox" name="reArea" id="ra${i}" value="${n}"><span>${n}</span></label>`).join('');
@@ -937,6 +980,7 @@ function mqSummaryLines(pa){
   }
   function go(step) {
     cur = step;
+    if (step === 'when') loadBusy();
     document.querySelectorAll('.step').forEach((s) => { s.hidden = s.dataset.step !== step; });
     const f = flow(), idx = f.indexOf(step);
     $('backBtn').hidden = idx === 0;
@@ -973,7 +1017,7 @@ function mqSummaryLines(pa){
   const FEEL = { '1': 'じっとしていても強く痛む', '3': '動かすと強く痛む', '4': '動かすと痛い', '5': '時々痛い・重い', '6': '痛みはないが体を見てほしい' };
   const j = (a) => (a && a.length ? a.join('、') : '—');
   function ageOf(b) { if (!b) return null; const d = new Date(b), n = new Date(); if (isNaN(d)) return null; let a = n.getFullYear() - d.getFullYear(); if (n.getMonth() < d.getMonth() || (n.getMonth() === d.getMonth() && n.getDate() < d.getDate())) a--; return a; }
-  let text = '';
+  let text = '', lastRv = null, sentId = '';
   function buildConfirm() {
     const isNew = radio('visit') === '初診';
     const when = whenText(), flex = radio('flex');
@@ -1024,11 +1068,24 @@ function mqSummaryLines(pa){
     Object.assign(rv, { v: 1, date: dd ? `${dd.getFullYear()}-${String(dd.getMonth() + 1).padStart(2, '0')}-${String(dd.getDate()).padStart(2, '0')}` : '', time: radio('time'), flex });
     lines.push('', `[[RV:${window.LZString ? 'L' + LZString.compressToEncodedURIComponent(JSON.stringify(rv)) : 'J' + encodeURIComponent(JSON.stringify(rv))}]]`);
     text = lines.filter((x) => x !== null).join('\n');
+    lastRv = Object.assign({}, rv, { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8) });
     $('summary').textContent = text;
     $('lineBtn').href = `https://line.me/R/oaMessage/${encodeURIComponent(CLINIC.lineId)}/?${encodeURIComponent(text)}`;
     $('copyMsg').hidden = true;
     $('dirBox').innerHTML = dirHTML; $('dirBox').hidden = !dirHTML;
   }
+  // ---- 予約台帳にも同じ予約を入れる（LINEのWebhookは使わないので、Lステップには影響しない）----
+  function sendToSheet() {
+    if (!CLINIC.sheetUrl || !lastRv || sentId === lastRv.id) return;
+    sentId = lastRv.id;
+    const body = JSON.stringify({ kind: 'web-booking', rv: lastRv, text: text.slice(0, 20000) });
+    try {
+      if (navigator.sendBeacon && navigator.sendBeacon(CLINIC.sheetUrl, new Blob([body], { type: 'text/plain;charset=UTF-8' }))) return;
+    } catch (err) {}
+    try { fetch(CLINIC.sheetUrl, { method: 'POST', mode: 'no-cors', keepalive: true, headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body }); } catch (err) {}
+  }
+  $('lineBtn').addEventListener('click', sendToSheet, true);
+  $('copyBtn').addEventListener('click', sendToSheet, true);
   $('copyBtn').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(text); $('copyMsg').textContent = `コピーしました。LINEで「${CLINIC.lineId}」のトークに貼り付けて送信してください。`; }
     catch (err) { const r = document.createRange(); r.selectNodeContents($('summary')); $('summary').closest('details').open = true; const s = getSelection(); s.removeAllRanges(); s.addRange(r); $('copyMsg').textContent = '文面を選択しました。長押しでコピーしてください。'; }
