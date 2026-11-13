@@ -930,6 +930,7 @@ function mqSummaryLines(pa){
         BUSY = j.busy || {};
         if (j.durNew > 0) DUR.new = j.durNew;
         if (j.durReg > 0) DUR.re = j.durReg;
+        if (j.step > 0) CLINIC.stepMin = j.step;
         busyState = 'ok';
       })
       .catch(() => { BUSY = null; busyState = 'error'; })
